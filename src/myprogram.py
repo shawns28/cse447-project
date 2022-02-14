@@ -4,7 +4,6 @@ import string
 import random
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
-
 class MyModel:
     """
     This is a starter model to get you started. Feel free to modify this file.
@@ -14,6 +13,53 @@ class MyModel:
     def load_training_data(cls):
         # your code here
         # this particular model doesn't train
+        # https://www.statmt.org/europarl/
+        # Need to download parallel corpus Bulgarian-English and unzip before running
+        with open("data/europarl-v7.bg-en.en") as f:
+            # Supposed to split into sentences but not doing that for now, also going to ignore padding and just take off the last couple words
+            lines = f.read().lower()
+            lines = lines.translate(str.maketrans('', '', string.punctuation))
+            tokens = lines.split()
+            print(tokens[:100])
+            token_dict = dict()
+            for token in tokens:
+                if token in token_dict:
+                    token_dict[token] += 1
+                else:
+                    token_dict[token] = 1
+            unknown_list = set()
+            for token in token_dict:
+                if token_dict[token] < 3:
+                    unknown_list.add(token)
+            for item in unknown_list:
+                token_dict.pop(item)
+            token_dict['UNK'] = 1
+            for i in range(len(tokens)):
+                if tokens[i] not in token_dict:
+                    tokens[i] = 'UNK'
+            word_to_index = {}
+            index = 0
+            for token in token_dict:
+                word_to_index[token] = index
+                index += 1
+            for i in range(len(tokens)):
+                tokens[i] = word_to_index[tokens[i]]
+            print(tokens[:300])
+            batch_num = 4
+            print("length of vocab", len(word_to_index))
+            print("length of input text", len(tokens))
+            # We have the words tokenized and replaced uncommon words with unk
+            # We don't have to worry about padding for this example since its already divisible by 4
+            # https://towardsdatascience.com/exploring-the-next-word-predictor-5e22aeb85d8f
+            # Using that link on how to do the preprocessing.
+            # Next Steps:
+            # Convert tokens into a 2d matrix where we split it up into sequences of words of batch size
+            # words in text = 9845304, batch size = 4, vocab = 26603
+            # tokens should become size (9845304 / 4, 4)
+            # Then we take each group of 4 and remove the 4th word and make the label
+            # tokens should be a tuple of ((9845304 / 4, 3), (9845304 / 4, 1)) representing input and labels
+            # We ten need to make the inputs one hot encoding
+            # tokens should be a tuple of ((9845304 / 4, 3, 26603), (9845304 / 4, 1))
         return []
 
     @classmethod
