@@ -3,6 +3,7 @@ import os
 import string
 import random
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+import torch
 
 class MyModel:
     """
@@ -15,7 +16,7 @@ class MyModel:
         # this particular model doesn't train
         # https://www.statmt.org/europarl/
         # Need to download parallel corpus Bulgarian-English and unzip before running
-        with open("data/europarl-v7.bg-en.en") as f:
+        with open("europarl-v7.bg-en.en", encoding='Latin1') as f:
             # Supposed to split into sentences but not doing that for now, also going to ignore padding and just take off the last couple words
             lines = f.read().lower()
             lines = lines.translate(str.maketrans('', '', string.punctuation))
@@ -44,7 +45,8 @@ class MyModel:
                 index += 1
             for i in range(len(tokens)):
                 tokens[i] = word_to_index[tokens[i]]
-            print(tokens[:300])
+            #print(tokens[:300])
+            tokens = tokens[:-2]
             batch_num = 4
             print("length of vocab", len(word_to_index))
             print("length of input text", len(tokens))
@@ -58,8 +60,17 @@ class MyModel:
             # tokens should become size (9845304 / 4, 4)
             # Then we take each group of 4 and remove the 4th word and make the label
             # tokens should be a tuple of ((9845304 / 4, 3), (9845304 / 4, 1)) representing input and labels
-            # We ten need to make the inputs one hot encoding
+            # We then need to make the inputs one hot encoding
             # tokens should be a tuple of ((9845304 / 4, 3, 26603), (9845304 / 4, 1))
+            input_tensor = torch.zeros(( int(len(tokens) / batch_num), batch_num - 1))
+            label_tensor = torch.zeros((int(len(tokens) / batch_num), 1))
+            print(input_tensor.shape)
+            for i in range(0, len(tokens), batch_num):
+                for j in range(0, batch_num - 1):
+                    input_tensor[int(i / batch_num)][j] = tokens[i + j]
+                label_tensor[int(i / batch_num)][0] = tokens[i + batch_num - 1]
+            data = (input_tensor, label_tensor)
+            #print(data[0][:5])
         return []
 
     @classmethod
