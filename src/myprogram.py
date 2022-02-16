@@ -135,12 +135,12 @@ class MyModel(nn.Module):
                     input_tensor[int(i / batch_num)][j] = tokens[i + j]
                 label_tensor[int(i / batch_num)][0] = tokens[i + batch_num - 1]
             data = (input_tensor, label_tensor)
-        torch.save(data, "preprocessed_data.pt")
+        torch.save(data, "work/preprocessed_data.pt")
         index_to_word = {}
         for word in word_to_index:
             index_to_word[word_to_index[word]] = word
-        torch.save(index_to_word, "index_to_word.pt")
-        torch.save(word_to_index, "word_to_index.pt")
+        torch.save(index_to_word, "work/index_to_word.pt")
+        torch.save(word_to_index, "work/word_to_index.pt")
         return data, word_to_index
 
     @classmethod
@@ -230,8 +230,8 @@ class MyModel(nn.Module):
             data[i].pop()
         #print(data)
         #print(last_words)
-        index_to_word = torch.load("index_to_word.pt")
-        word_to_index = torch.load("word_to_index.pt")
+        index_to_word = torch.load("work/index_to_word.pt")
+        word_to_index = torch.load("work/word_to_index.pt")
         self.eval()
         for i in range(len(data)):
             words_that_matter_indices = []
@@ -304,7 +304,7 @@ if __name__ == '__main__':
             os.makedirs(args.work_dir)
         print('Loading training data')
         MyModel.load_training_data()
-        train_data = torch.load("preprocessed_data.pt")
+        train_data = torch.load("work/preprocessed_data.pt")
         print('Instatiating model')
         model = MyModel()
         model.to(device)
