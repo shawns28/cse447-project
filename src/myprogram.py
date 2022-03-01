@@ -6,6 +6,7 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from tqdm import tqdm
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # print(device)
@@ -14,11 +15,9 @@ class MyModel(nn.Module):
     This is a starter model to get you started. Feel free to modify this file.
     """
     # Need to fix this because it relies on info it doesn't have technically yet
-    def __init__(self):
+    def __init__(self, vocab_size):
         super().__init__()
 
-        # Change and pass in the vocab
-        vocab_size = 3114
         # Can keep hardcoded
         embedding_dim = 50
         # 50
@@ -80,17 +79,25 @@ class MyModel(nn.Module):
     @classmethod
     def load_training_data(cls):
         # your code here
-        # this particular model doesn't train
         # https://www.statmt.org/europarl/
         # Need to download parallel corpus Bulgarian-English and unzip before running
+        batch_num = 4
+        words_from_each = 100000
         with open("data/europarl-v7.bg-en.en", encoding='Latin1') as f:
-            # Supposed to split into sentences but not doing that for now, also going to ignore padding and just take off the last couple words
             lines = f.read().lower()
             lines = lines.translate(str.maketrans('', '', string.punctuation))
-            tokens = lines.split()
-            tokens = tokens[:-34]
-            tokens = tokens[:int(len(tokens) / 100)]
-            # print("length of input text", len(tokens))
+            english_tokens = lines.split()
+            
+            english_tokens = english_tokens[:words_from_each]
+            print("length of english tokens", len(english_tokens))
+        with open("data/europarl-v7.bg-en.bg", encoding='utf-8') as f:
+            lines = f.read().lower()
+            lines = lines.translate(str.maketrans('', '', string.punctuation))
+            bulgarian_tokens = lines.split()
+            bulgarian_tokens = bulgarian_tokens[:words_from_each]
+            print("length of bulgarian tokens", len(bulgarian_tokens))
+            tokens = english_tokens + bulgarian_tokens
+            print("length of input text", len(tokens))
             token_dict = dict()
             for token in tokens:
                 if token in token_dict:
@@ -114,8 +121,7 @@ class MyModel(nn.Module):
                 index += 1
             for i in range(len(tokens)):
                 tokens[i] = word_to_index[tokens[i]]
-            #print(tokens[:300])
-            batch_num = 4
+            
             # print("length of vocab", len(word_to_index))
             # We have the words tokenized and replaced uncommon words with unk
             # We don't have to worry about padding for this example since its already divisible by 4
@@ -163,11 +169,14 @@ class MyModel(nn.Module):
                 f.write('{}\n'.format(p))
 
     def run_train(self, data, work_dir):
-        # your code here
-        # print(data[0][:5])
-        # print(data[1][:5])
+        params = {'batch_size': 128,
+          'shuffle': True,
+          'num_workers': 2}
+        training_set = self.Dataset(data[0].to(torch.int64), data[1].to(torch.int64))
+        train_loader = torch.utils.data.DataLoader(training_set, **params)
+
         LEARNING_RATE = 0.01
-        NUM_EPOCHS = 300
+        NUM_EPOCHS = 50
         optimizer = optim.Adam(self.parameters(), lr=LEARNING_RATE)
         # print(self.parameters)
         for epoch in range(NUM_EPOCHS):
@@ -182,38 +191,30 @@ class MyModel(nn.Module):
             
 
             self.train()
-            # for batch_idx, batch in enumerate(tqdm_train_loader):
-            #     sentences_batch, labels_batch = batch
-            #     sentences_batch = sentences_batch.to(device)
-            #     labels_batch = labels_batch.to(device)
+            for batch_idx, batch in enumerate(train_loader):
+                sentences_batch, labels_batch = batch
+                sentences_batch = sentences_batch.to(device)
+                labels_batch = labels_batch.to(device)
+                # print(sentences_batch.shape)
 
-            # Make predictions
+                output = self(sentences_batch)
+                
+                # Compute loss and number of correct predictions
+                loss = self.loss(output, labels_batch)
+                correct = self.accuracy(output, labels_batch).item() * len(output)
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
 
-            sentences_batch = data[0].to(torch.int64)
-            labels_batch = data[1].to(torch.int64)
-            sentences_batch = sentences_batch.to(device)
-            labels_batch = labels_batch.to(device)
-            # print(sentences_batch.shape)
-
-            output = self(sentences_batch)
-            
-            # Compute loss and number of correct predictions
-            loss = self.loss(output, labels_batch)
-            correct = self.accuracy(output, labels_batch).item() * len(output)
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-
-            # Accumulate metrics and update status
-            train_loss += loss.item()
-            train_correct += correct
-            train_seqs += len(sentences_batch)
+                # Accumulate metrics and update status
+                train_loss += loss.item()
+                train_correct += correct
+                train_seqs += len(sentences_batch)
         # tqdm_train_loader.set_description_str(
         #     f"[Loss]: {train_loss / (batch_idx + 1):.4f} [Acc]: {train_correct / train_seqs:.4f}")
         # print()
 
-            # avg_train_loss = train_loss / len(tqdm_train_loader)
-            avg_train_loss = train_loss / 1
+            avg_train_loss = train_loss / len(train_loader)
             train_accuracy = train_correct / train_seqs
             if (epoch % 10 == 0):
                 print(f"Epoch {epoch + 1}/{NUM_EPOCHS}")
@@ -228,8 +229,6 @@ class MyModel(nn.Module):
         for i in range(len(data)):
             last_words.append(data[i][-1])
             data[i].pop()
-        #print(data)
-        #print(last_words)
         index_to_word = torch.load("work/index_to_word.pt")
         word_to_index = torch.load("work/word_to_index.pt")
         self.eval()
@@ -239,7 +238,6 @@ class MyModel(nn.Module):
             for token in word_to_index:
                 if token.startswith(last_word) and len(token) > len(last_word):
                     words_that_matter_indices.append(word_to_index[token])
-
             single_test_item = data[i]
             for j in range(len(single_test_item)):
                 if single_test_item[j] in word_to_index:
@@ -251,21 +249,24 @@ class MyModel(nn.Module):
             single_tensor = torch.tensor(single_test_item)
             single_tensor = single_tensor.long()
             single_tensor = torch.reshape(single_tensor, (1, len(single_tensor)))
-            # single_tensor = single_tensor.to(device)
             with torch.no_grad():
                 output = self(single_tensor)
                 output = torch.flatten(output)
                 output = output[words_that_matter_indices]
-                # If we have atleast 3
-                try:
-                    top_three_changed_indices = torch.topk(output, 3).indices
-                    prediction_words = [index_to_word[words_that_matter_indices[top_three_changed_indices[k]]] for k in range(3)]
-                    prediction_chars = [prediction_words[k][len(last_word)] for k in range(3)]
-                    preds.append(''.join(prediction_chars))
-                # If we have less than 3, should change next time
-                except:
-                    top_guesses = [random.choice(all_chars).lower() for _ in range(3)]
-                    preds.append(''.join(top_guesses))
+                char_to_output_dict = {}
+                for i in range(len(words_that_matter_indices)):
+                    char_to_output_dict[words_that_matter_indices[i]] = output[i]
+                sorted_dict = dict(sorted(char_to_output_dict.items(), key=lambda item: item[1], reverse=True))
+                prediction_set = set()
+                for word_index in sorted_dict:
+                    word = index_to_word[word_index]
+                    pred_char = word[len(last_word)]
+                    prediction_set.add(pred_char)
+                    if (len(prediction_set) == 3):
+                        break
+                while len(prediction_set) < 3:
+                    prediction_set.add(random.choice(all_chars).lower())
+                preds.append(''.join(list(prediction_set)))
         return preds
 
     def save(self, work_dir):
@@ -281,9 +282,21 @@ class MyModel(nn.Module):
         # this particular model has nothing to load, but for demonstration purposes we will load a blank file
         # with open(os.path.join(work_dir, 'model.checkpoint')) as f:
         #     dummy_save = f.read()
-        model = MyModel()
+        index_to_word = torch.load("work/index_to_word.pt")
+        model = MyModel(len(index_to_word))
         model.load_state_dict(torch.load(work_dir + "/model.checkpoint"))
         return model
+
+    class Dataset(torch.utils.data.Dataset):
+        def __init__(self, features, labels):
+            self.labels = labels
+            self.features = features
+
+        def __len__(self):
+            return len(self.labels)
+
+        def __getitem__(self, index):
+            return self.features[index], self.labels[index]
 
 
 if __name__ == '__main__':
@@ -295,18 +308,20 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     random.seed(0)
-    # if args.mode == 'load_training_data':
-    #     print('Loading training data')
-    #     train_data, word_to_index = MyModel.load_training_data()
-    if args.mode == 'train':
+    if args.mode == 'load_training_data':
+        print('Loading training data')
+        train_data, word_to_index = MyModel.load_training_data()
+    elif args.mode == 'train':
         if not os.path.isdir(args.work_dir):
             print('Making working directory {}'.format(args.work_dir))
             os.makedirs(args.work_dir)
-        print('Loading training data')
-        MyModel.load_training_data()
+        # print('Loading training data')
+        # MyModel.load_training_data()
         train_data = torch.load("work/preprocessed_data.pt")
+        index_to_word = torch.load("work/index_to_word.pt")
+        print(len(index_to_word))
         print('Instatiating model')
-        model = MyModel()
+        model = MyModel(len(index_to_word))
         model.to(device)
         print('Training')
         model.run_train(train_data, args.work_dir)
