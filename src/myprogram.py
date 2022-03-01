@@ -6,7 +6,6 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from tqdm import tqdm
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # print(device)
@@ -96,7 +95,43 @@ class MyModel(nn.Module):
             bulgarian_tokens = lines.split()
             bulgarian_tokens = bulgarian_tokens[:words_from_each]
             print("length of bulgarian tokens", len(bulgarian_tokens))
+        with open("data/europarl-v7.es-en.es", encoding='utf-8') as f:
+            lines = f.read().lower()
+            lines = lines.translate(str.maketrans('', '', string.punctuation))
+            spanish_tokens = lines.split()
+            
+            spanish_tokens = spanish_tokens[:words_from_each]
+            print("length of spanish tokens", len(spanish_tokens))
+
+        with open("data/europarl-v7.fr-en.fr", encoding='utf-8') as f:
+            lines = f.read().lower()
+            lines = lines.translate(str.maketrans('', '', string.punctuation))
+            french_tokens = lines.split()
+            
+            french_tokens = french_tokens[:words_from_each]
+            print("length of french tokens", len(french_tokens))
+
+        with open("data/europarl-v7.cs-en.cs", encoding='utf-8') as f:
+            lines = f.read().lower()
+            lines = lines.translate(str.maketrans('', '', string.punctuation))
+            czech_tokens = lines.split()
+            
+            czech_tokens = czech_tokens[:words_from_each]
+            print("length of czech tokens", len(czech_tokens))
+
+        with open("data/europarl-v7.sv-en.sv", encoding='utf-8') as f:
+            lines = f.read().lower()
+            lines = lines.translate(str.maketrans('', '', string.punctuation))
+            swedish_tokens = lines.split()
+            
+            swedish_tokens = swedish_tokens[:words_from_each]
+            print("length of swedish tokens", len(swedish_tokens))
+
             tokens = english_tokens + bulgarian_tokens
+            tokens = tokens + spanish_tokens
+            tokens = tokens + french_tokens
+            tokens = tokens + czech_tokens
+            tokens = tokens + swedish_tokens
             print("length of input text", len(tokens))
             token_dict = dict()
             for token in tokens:
@@ -104,6 +139,7 @@ class MyModel(nn.Module):
                     token_dict[token] += 1
                 else:
                     token_dict[token] = 1
+            print(len(token_dict))
             unknown_list = set()
             for token in token_dict:
                 if token_dict[token] < 3:
@@ -121,7 +157,8 @@ class MyModel(nn.Module):
                 index += 1
             for i in range(len(tokens)):
                 tokens[i] = word_to_index[tokens[i]]
-            
+            print(len(token_dict))
+
             # print("length of vocab", len(word_to_index))
             # We have the words tokenized and replaced uncommon words with unk
             # We don't have to worry about padding for this example since its already divisible by 4
@@ -176,7 +213,7 @@ class MyModel(nn.Module):
         train_loader = torch.utils.data.DataLoader(training_set, **params)
 
         LEARNING_RATE = 0.01
-        NUM_EPOCHS = 50
+        NUM_EPOCHS = 100
         optimizer = optim.Adam(self.parameters(), lr=LEARNING_RATE)
         # print(self.parameters)
         for epoch in range(NUM_EPOCHS):
