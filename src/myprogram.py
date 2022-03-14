@@ -8,29 +8,21 @@ import torch.nn as nn
 import torch.optim as optim
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-# print(device)
 class MyModel(nn.Module):
     """
     This is a starter model to get you started. Feel free to modify this file.
     """
-    # Need to fix this because it relies on info it doesn't have technically yet
     def __init__(self, vocab_size):
         super().__init__()
 
         # Can keep hardcoded
         embedding_dim = 50
-        # 50
         embedding_matrix = torch.normal(0, 1, (vocab_size, embedding_dim))
         # Construct embedding layer and initialize with given embedding matrix. Do not modify this code.
         self.embedding = nn.Embedding(num_embeddings=vocab_size, embedding_dim=embedding_dim, padding_idx=0)
         self.embedding.weight.data = embedding_matrix
-        #self.embedding.weight.data.requires_grad = False
-        #self.type_module = nn.RNN(50, 64, batch_first=True)
         self.type_module = nn.LSTM(embedding_dim, 64, batch_first=True)
-        #self.type_module = nn.GRU(50, 64, batch_first=True)
         self.linear_module = nn.Linear(64, vocab_size)
-
-        #raise NotImplementedError
 
 
     def forward(self, inputs):
@@ -58,7 +50,6 @@ class MyModel(nn.Module):
         loss_function = nn.CrossEntropyLoss()
         result = loss_function(output, targets)
         return result
-        #raise NotImplementedError
 
     def accuracy(self, output, targets):
         """
@@ -73,13 +64,9 @@ class MyModel(nn.Module):
         
         output_transformed = output_transformed.to(device)
         return torch.eq(output_transformed, targets).sum() / len(output_transformed)
-        #raise NotImplementedError
 
     @classmethod
     def load_training_data(cls):
-        # your code here
-        # https://www.statmt.org/europarl/
-        # Need to download parallel corpus Bulgarian-English and unzip before running
         batch_num = 4
         words_from_each = 100000
         with open("data/europarl-v7.bg-en.en", encoding='Latin1') as f:
@@ -87,7 +74,7 @@ class MyModel(nn.Module):
             lines = lines.translate(str.maketrans('', '', string.punctuation))
             english_tokens = lines.split()
             
-            english_tokens = english_tokens[:words_from_each]
+            english_tokens = english_tokens[:words_from_each * 2]
             print("length of english tokens", len(english_tokens))
         with open("data/europarl-v7.bg-en.bg", encoding='utf-8') as f:
             lines = f.read().lower()
@@ -116,7 +103,7 @@ class MyModel(nn.Module):
             lines = lines.translate(str.maketrans('', '', string.punctuation))
             czech_tokens = lines.split()
             
-            czech_tokens = czech_tokens[:words_from_each]
+            czech_tokens = czech_tokens[:words_from_each // 2]
             print("length of czech tokens", len(czech_tokens))
 
         with open("data/europarl-v7.sv-en.sv", encoding='utf-8') as f:
@@ -127,11 +114,20 @@ class MyModel(nn.Module):
             swedish_tokens = swedish_tokens[:words_from_each]
             print("length of swedish tokens", len(swedish_tokens))
 
+        with open("data/europarl-v7.ro-en.ro", encoding='utf-8') as f:
+            lines = f.read().lower()
+            lines = lines.translate(str.maketrans('', '', string.punctuation))
+            romanian_tokens = lines.split()
+            
+            romanian_tokens = romanian_tokens[:words_from_each // 2]
+            print("length of romanian tokens", len(romanian_tokens))
+
             tokens = english_tokens + bulgarian_tokens
             tokens = tokens + spanish_tokens
             tokens = tokens + french_tokens
             tokens = tokens + czech_tokens
             tokens = tokens + swedish_tokens
+            tokens = tokens + romanian_tokens
             print("length of input text", len(tokens))
             token_dict = dict()
             for token in tokens:
@@ -157,9 +153,8 @@ class MyModel(nn.Module):
                 index += 1
             for i in range(len(tokens)):
                 tokens[i] = word_to_index[tokens[i]]
-            print(len(token_dict))
+            print("vocab size", len(token_dict))
 
-            # print("length of vocab", len(word_to_index))
             # We have the words tokenized and replaced uncommon words with unk
             # We don't have to worry about padding for this example since its already divisible by 4
             # https://towardsdatascience.com/exploring-the-next-word-predictor-5e22aeb85d8f
@@ -172,7 +167,6 @@ class MyModel(nn.Module):
             # tokens should be a tuple of ((9845304 / 4, 3), (9845304 / 4, 1)) representing input and labels
             input_tensor = torch.zeros(( int(len(tokens) / batch_num), batch_num - 1))
             label_tensor = torch.zeros((int(len(tokens) / batch_num), 1))
-            # print(input_tensor.shape)
             for i in range(0, len(tokens), batch_num):
                 for j in range(0, batch_num - 1):
                     input_tensor[int(i / batch_num)][j] = tokens[i + j]
@@ -188,7 +182,6 @@ class MyModel(nn.Module):
 
     @classmethod
     def load_test_data(cls, fname):
-        # your code here
         data = []
         with open(fname) as f:
             for line in f:
@@ -212,27 +205,22 @@ class MyModel(nn.Module):
         training_set = self.Dataset(data[0].to(torch.int64), data[1].to(torch.int64))
         train_loader = torch.utils.data.DataLoader(training_set, **params)
 
-        LEARNING_RATE = 0.01
+        LEARNING_RATE = 0.005
         NUM_EPOCHS = 100
         optimizer = optim.Adam(self.parameters(), lr=LEARNING_RATE)
-        # print(self.parameters)
         for epoch in range(NUM_EPOCHS):
                 # Total loss across train data
             train_loss = 0.
                 # Total number of correctly predicted training labels
             train_correct = 0
                 # # Total number of training sequences processed
-            train_seqs = 0
-
-            #tqdm_train_loader = tqdm(train_loader, position=0, leave=True)
-            
+            train_seqs = 0            
 
             self.train()
             for batch_idx, batch in enumerate(train_loader):
                 sentences_batch, labels_batch = batch
                 sentences_batch = sentences_batch.to(device)
                 labels_batch = labels_batch.to(device)
-                # print(sentences_batch.shape)
 
                 output = self(sentences_batch)
                 
@@ -247,19 +235,14 @@ class MyModel(nn.Module):
                 train_loss += loss.item()
                 train_correct += correct
                 train_seqs += len(sentences_batch)
-        # tqdm_train_loader.set_description_str(
-        #     f"[Loss]: {train_loss / (batch_idx + 1):.4f} [Acc]: {train_correct / train_seqs:.4f}")
-        # print()
 
             avg_train_loss = train_loss / len(train_loader)
             train_accuracy = train_correct / train_seqs
             if (epoch % 10 == 0):
                 print(f"Epoch {epoch + 1}/{NUM_EPOCHS}")
                 print(f"[Training Loss]: {avg_train_loss:.4f} [Training Accuracy]: {train_accuracy:.4f}")
-            #pass
 
     def run_pred(self, data):
-        # your code here
         all_chars = string.ascii_letters
         preds = []
         last_words = []
@@ -307,18 +290,10 @@ class MyModel(nn.Module):
         return preds
 
     def save(self, work_dir):
-        # your code here
-        # this particular model has nothing to save, but for demonstration purposes we will save a blank file
-        # with open(os.path.join(work_dir, 'model.checkpoint'), 'wt') as f:
-        #     f.write('dummy save')
         torch.save(self.state_dict(), work_dir + "/model.checkpoint")
 
     @classmethod
     def load(cls, work_dir):
-        # your code here
-        # this particular model has nothing to load, but for demonstration purposes we will load a blank file
-        # with open(os.path.join(work_dir, 'model.checkpoint')) as f:
-        #     dummy_save = f.read()
         index_to_word = torch.load("work/index_to_word.pt")
         model = MyModel(len(index_to_word))
         model.load_state_dict(torch.load(work_dir + "/model.checkpoint"))
@@ -352,8 +327,6 @@ if __name__ == '__main__':
         if not os.path.isdir(args.work_dir):
             print('Making working directory {}'.format(args.work_dir))
             os.makedirs(args.work_dir)
-        # print('Loading training data')
-        # MyModel.load_training_data()
         train_data = torch.load("work/preprocessed_data.pt")
         index_to_word = torch.load("work/index_to_word.pt")
         print(len(index_to_word))
